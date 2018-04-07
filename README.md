@@ -4,6 +4,8 @@ Gets Sonarqube results.
 
 ## Installing
 
+`Shortcut`: [Pipeline example](https://github.com/elgohr/concourse-sonarqube-notifier/blob/master/example-pipeline.yml)
+
 Use this resource by adding the following to
 the `resource_types` section of a pipeline config:
 
