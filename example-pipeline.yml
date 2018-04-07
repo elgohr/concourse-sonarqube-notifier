@@ -1,0 +1,32 @@
+resource_types:
+- name: sonarqube-notifier
+  type: docker-image
+  source:
+    repository: lgohr/sonarqube
+    tag: latest
+
+resources:
+- name: sonarqube
+  type: sonarqube-notifier
+  source:
+    target: https://my.sonar.server
+    sonartoken: ((my-secret-token))
+    component: my:component
+    metrics: ncloc,complexity,violations,coverage
+
+jobs:
+- name: echo
+  plan:
+  - get: sonarqube
+    trigger: true
+  - task: show-result
+    config:
+      platform: linux
+      image_resource:
+        type: docker-image
+        source: {repository: busybox}
+      inputs:
+      - name: sonarqube
+      run:
+        path: cat
+        args: [sonarqube/result.json]
