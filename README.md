@@ -43,4 +43,65 @@ resources:
 Get the latest result; write it to the local working directory (e.g.
 `/tmp/build/get`) with the filename result.json.
 
+Example response (metrics: nloc,complexity,violations,coverage)
+```json
+{
+  "component": {
+    "id": "AWH_6osdce3G0HojaCW1",
+    "key": "my:component",
+    "name": "my-component",
+    "qualifier": "TRK",
+    "measures": [
+      {
+        "metric": "ncloc",
+        "value": "824",
+        "periods": [
+          {
+            "index": 1,
+            "value": "299"
+          }
+        ]
+      },
+      {
+        "metric": "complexity",
+        "value": "90",
+        "periods": [
+          {
+            "index": 1,
+            "value": "27"
+          }
+        ]
+      },
+      {
+        "metric": "violations",
+        "value": "5",
+        "periods": [
+          {
+            "index": 1,
+            "value": "-6"
+          }
+        ]
+      },
+      {
+        "metric": "coverage",
+        "value": "91.4",
+        "periods": [
+          {
+            "index": 1,
+            "value": "40.7"
+          }
+        ]
+      }
+    ]
+  },
+  "periods": [
+    {
+      "index": 1,
+      "mode": "previous_version",
+      "date": "2018-03-07T16:58:31+0100"
+    }
+  ]
+}
+```
+
 ## `out`: Nothing
