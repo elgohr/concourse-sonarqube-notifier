@@ -63,7 +63,7 @@ func run(stdIn io.Reader, stdOut io.Writer, resultSource ResultSource) error {
 	var remoteVersions CheckResponse
 
 	for _, a := range response.Analyses {
-		remoteVersions = append(remoteVersions, Version{a.Key:a.Date})
+		remoteVersions = append([]Version{{a.Key:a.Date}}, remoteVersions...)
 	}
 
 	err = json.NewEncoder(stdOut).Encode(remoteVersions)
