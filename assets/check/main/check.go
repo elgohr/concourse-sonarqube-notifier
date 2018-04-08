@@ -10,10 +10,19 @@ import (
 )
 
 type CheckRequest struct {
-	Source  Source  `json:"source"`
+	Source Source `json:"source"`
 }
 
 type CheckResponse []Version
+
+type SonarResponse struct {
+	Analyses []Analyses `json:"analyses"`
+}
+
+type Analyses struct {
+	Key  string `json:"key"`
+	Date string `json:"date"`
+}
 
 func main() {
 	err := run(os.Stdin, os.Stdout, new(Sonarqube))
@@ -24,7 +33,10 @@ func main() {
 }
 
 func run(stdIn io.Reader, stdOut io.Writer, resultSource ResultSource) error {
-	var input CheckRequest
+	var (
+		input    CheckRequest
+		response SonarResponse
+	)
 	err := json.NewDecoder(stdIn).Decode(&input)
 	if HasError(err) {
 		return err
@@ -34,22 +46,27 @@ func run(stdIn io.Reader, stdOut io.Writer, resultSource ResultSource) error {
 		return errors.New("mandatory field is missing")
 	}
 
-	result, err := resultSource.GetResult(
+	result, err := resultSource.GetVersions(
 		input.Source.Target,
 		input.Source.SonarToken,
 		input.Source.Component,
-		input.Source.Metrics,
 	)
 	if HasError(err) {
 		return err
 	}
 
-	remoteVersion := make(map[string]string)
-	remoteVersion["ref"] = Md5Hash(string(result))
-	response := CheckResponse{
-		remoteVersion,
+	err = json.Unmarshal(result, &response)
+	if HasError(err) {
+		return err
 	}
-	err = json.NewEncoder(stdOut).Encode(response)
+
+	var remoteVersions CheckResponse
+
+	for _, a := range response.Analyses {
+		remoteVersions = append(remoteVersions, Version{a.Key:a.Date})
+	}
+
+	err = json.NewEncoder(stdOut).Encode(remoteVersions)
 	if HasError(err) {
 		return err
 	}

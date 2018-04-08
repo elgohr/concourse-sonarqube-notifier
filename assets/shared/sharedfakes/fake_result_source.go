@@ -24,6 +24,21 @@ type FakeResultSource struct {
 		result1 []byte
 		result2 error
 	}
+	GetVersionsStub        func(baseUrl string, authToken string, component string) ([]byte, error)
+	getVersionsMutex       sync.RWMutex
+	getVersionsArgsForCall []struct {
+		baseUrl   string
+		authToken string
+		component string
+	}
+	getVersionsReturns struct {
+		result1 []byte
+		result2 error
+	}
+	getVersionsReturnsOnCall map[int]struct {
+		result1 []byte
+		result2 error
+	}
 	invocations      map[string][][]interface{}
 	invocationsMutex sync.RWMutex
 }
@@ -82,11 +97,66 @@ func (fake *FakeResultSource) GetResultReturnsOnCall(i int, result1 []byte, resu
 	}{result1, result2}
 }
 
+func (fake *FakeResultSource) GetVersions(baseUrl string, authToken string, component string) ([]byte, error) {
+	fake.getVersionsMutex.Lock()
+	ret, specificReturn := fake.getVersionsReturnsOnCall[len(fake.getVersionsArgsForCall)]
+	fake.getVersionsArgsForCall = append(fake.getVersionsArgsForCall, struct {
+		baseUrl   string
+		authToken string
+		component string
+	}{baseUrl, authToken, component})
+	fake.recordInvocation("GetVersions", []interface{}{baseUrl, authToken, component})
+	fake.getVersionsMutex.Unlock()
+	if fake.GetVersionsStub != nil {
+		return fake.GetVersionsStub(baseUrl, authToken, component)
+	}
+	if specificReturn {
+		return ret.result1, ret.result2
+	}
+	return fake.getVersionsReturns.result1, fake.getVersionsReturns.result2
+}
+
+func (fake *FakeResultSource) GetVersionsCallCount() int {
+	fake.getVersionsMutex.RLock()
+	defer fake.getVersionsMutex.RUnlock()
+	return len(fake.getVersionsArgsForCall)
+}
+
+func (fake *FakeResultSource) GetVersionsArgsForCall(i int) (string, string, string) {
+	fake.getVersionsMutex.RLock()
+	defer fake.getVersionsMutex.RUnlock()
+	return fake.getVersionsArgsForCall[i].baseUrl, fake.getVersionsArgsForCall[i].authToken, fake.getVersionsArgsForCall[i].component
+}
+
+func (fake *FakeResultSource) GetVersionsReturns(result1 []byte, result2 error) {
+	fake.GetVersionsStub = nil
+	fake.getVersionsReturns = struct {
+		result1 []byte
+		result2 error
+	}{result1, result2}
+}
+
+func (fake *FakeResultSource) GetVersionsReturnsOnCall(i int, result1 []byte, result2 error) {
+	fake.GetVersionsStub = nil
+	if fake.getVersionsReturnsOnCall == nil {
+		fake.getVersionsReturnsOnCall = make(map[int]struct {
+			result1 []byte
+			result2 error
+		})
+	}
+	fake.getVersionsReturnsOnCall[i] = struct {
+		result1 []byte
+		result2 error
+	}{result1, result2}
+}
+
 func (fake *FakeResultSource) Invocations() map[string][][]interface{} {
 	fake.invocationsMutex.RLock()
 	defer fake.invocationsMutex.RUnlock()
 	fake.getResultMutex.RLock()
 	defer fake.getResultMutex.RUnlock()
+	fake.getVersionsMutex.RLock()
+	defer fake.getVersionsMutex.RUnlock()
 	copiedInvocations := map[string][][]interface{}{}
 	for key, value := range fake.invocations {
 		copiedInvocations[key] = value
