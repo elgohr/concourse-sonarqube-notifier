@@ -3,7 +3,6 @@ package shared
 import (
 	"errors"
 	"io/ioutil"
-	"log"
 	"net/http"
 	"net/url"
 	"strconv"
@@ -28,7 +27,6 @@ func (s *Sonarqube) GetResult(baseUrl string, authToken string, component string
 	parameters.Add("metricKeys", metrics)
 	fullUrl.RawQuery = parameters.Encode()
 
-	log.Println("TEST:"+fullUrl.String())
 	req, err := http.NewRequest("GET", fullUrl.String(), nil)
 	req.SetBasicAuth(authToken, "")
 
