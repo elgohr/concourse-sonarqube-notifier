@@ -1,10 +1,5 @@
 package shared
 
-import (
-	"crypto/md5"
-	"encoding/hex"
-)
-
 type Source struct {
 	Target     string `json:"target"`
 	SonarToken string `json:"sonartoken"`
@@ -23,12 +18,6 @@ func (s *Source) Valid() bool {
 }
 
 type Version map[string]string
-
-func Md5Hash(s string) string {
-	hash := md5.New()
-	hash.Write([]byte(s))
-	return hex.EncodeToString(hash.Sum(nil))
-}
 
 func HasError(err error) bool {
 	return err != nil

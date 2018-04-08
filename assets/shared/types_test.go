@@ -62,13 +62,6 @@ var _ = Describe("Types", func() {
 
 	})
 
-	Describe("Md5Hash", func() {
-		It("hashes a string to an md5 byte array", func() {
-			result := shared.Md5Hash("test")
-			Expect(result).To(Equal("098f6bcd4621d373cade4e832627b4f6"))
-		})
-	})
-
 	Describe("hasError", func() {
 		It("returns true if an error is present", func() {
 			result := shared.HasError(errors.New("BAD"))
