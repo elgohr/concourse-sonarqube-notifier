@@ -100,12 +100,21 @@ var _ = Describe("Sonarqube", func() {
 		It("returns an error if the authentication is invalid", func() {
 			_, err := sonarqube.GetResult(testUrl, "INVALID", component, metrics)
 			Expect(err).To(HaveOccurred())
-			Expect(err.Error()).To(Equal("StatusCode:401"))
+			Expect(err.Error()).To(Equal("Status 401 : Expected:Basic U09OQVJfVE9LRU46 but was Basic SU5WQUxJRDo="))
 		})
 
 		It("returns an error if the content could not be found", func() {
-			_, err := sonarqube.GetResult("http://localhost/INVALID", authToken, component, metrics)
+			errorMessage := `{"errors":[{"msg":"Component key 'NOT_PRESENT' not found"}]}`
+			const suffix = "/api/measures/component?component=NOT_PRESENT&metricKeys=ncloc%2Ccomplexity%2Cviolations%2Ccoverage"
+
+			httpmock.RegisterResponder("GET", testUrl+suffix,
+				func(req *http.Request) (*http.Response, error) {
+					resp := httpmock.NewStringResponse(404, errorMessage)
+					return resp, nil
+				})
+			_, err := sonarqube.GetResult(testUrl, authToken, "NOT_PRESENT", metrics)
 			Expect(err).To(HaveOccurred())
+			Expect(err.Error()).To(Equal(`Status 404 : {"errors":[{"msg":"Component key 'NOT_PRESENT' not found"}]}`))
 		})
 	})
 
