@@ -3,6 +3,9 @@ ENV CGO_ENABLED 0
 COPY . /go/src/github.com/concourse-sonarqube-notifier
 
 RUN mkdir -p /assets \
+ && go test -v github.com/concourse-sonarqube-notifier/assets/in/main \
+ && go test -v github.com/concourse-sonarqube-notifier/assets/out/main \
+ && go test -v github.com/concourse-sonarqube-notifier/assets/check/main \
  && go build -o /assets/in github.com/concourse-sonarqube-notifier/assets/in/main \
  && go build -o /assets/out github.com/concourse-sonarqube-notifier/assets/out/main \
  && go build -o /assets/check github.com/concourse-sonarqube-notifier/assets/check/main
