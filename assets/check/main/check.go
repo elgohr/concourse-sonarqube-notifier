@@ -5,8 +5,12 @@ import (
 	"errors"
 	"github.com/elgohr/concourse-sonarqube-notifier/assets/shared"
 	"io"
+	"io/ioutil"
 	"log"
+	"net/http"
+	"net/url"
 	"os"
+	"strconv"
 )
 
 type CheckRequest struct {
@@ -25,13 +29,13 @@ type Analyses struct {
 }
 
 func main() {
-	if err := run(os.Stdin, os.Stdout, &shared.Sonarqube{}); err != nil {
+	if err := run(os.Stdin, os.Stdout); err != nil {
 		log.Fatalln(err)
 		os.Exit(1)
 	}
 }
 
-func run(stdIn io.Reader, stdOut io.Writer, resultSource shared.ResultSource) error {
+func run(stdIn io.Reader, stdOut io.Writer) error {
 	var (
 		input    CheckRequest
 		response SonarResponse
@@ -44,7 +48,7 @@ func run(stdIn io.Reader, stdOut io.Writer, resultSource shared.ResultSource) er
 		return errors.New("mandatory field is missing")
 	}
 
-	result, err := resultSource.GetVersions(
+	result, err := getVersions(
 		input.Source.Target,
 		input.Source.SonarToken,
 		input.Source.Component,
@@ -63,4 +67,33 @@ func run(stdIn io.Reader, stdOut io.Writer, resultSource shared.ResultSource) er
 	}
 
 	return json.NewEncoder(stdOut).Encode(remoteVersions)
+}
+
+func getVersions(baseUrl string, authToken string, component string) ([]byte, error) {
+	fullUrl, err := url.Parse(baseUrl)
+	if err != nil {
+		return nil, err
+	}
+	fullUrl.Path += "/api/project_analyses/search"
+	parameters := url.Values{}
+	parameters.Add("project", component)
+	fullUrl.RawQuery = parameters.Encode()
+
+	req, err := http.NewRequest("GET", fullUrl.String(), nil)
+	req.SetBasicAuth(authToken, "")
+
+	client := &http.Client{}
+	resp, err := client.Do(req)
+	defer resp.Body.Close()
+	if err != nil {
+		return nil, err
+	}
+	body, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		return nil, err
+	}
+	if resp.StatusCode != 200 {
+		return nil, errors.New("Status " + strconv.Itoa(resp.StatusCode) + " : " + string(body))
+	}
+	return body, nil
 }

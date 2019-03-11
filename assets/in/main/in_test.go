@@ -2,37 +2,94 @@ package main
 
 import (
 	"bytes"
-	"errors"
-	"github.com/elgohr/concourse-sonarqube-notifier/assets/shared/sharedfakes"
+	"encoding/base64"
+	"fmt"
 	"io/ioutil"
+	"net/http"
+	"net/http/httptest"
 	"path/filepath"
 	"testing"
 )
 
-var (
-	stdin            *bytes.Buffer
-	stdout           *bytes.Buffer
-	fakeResultSource *sharedfakes.FakeResultSource
-	tmpDownloadDir   string
+const (
+	mockResponse = `{
+		  "component": {
+		    "id": "AWH_6osdce3G0HojaCW1",
+		    "key": "my:component",
+		    "name": "component-name",
+		    "qualifier": "TRK",
+		    "measures": [
+		      {
+		        "metric": "violations",
+		        "value": "5",
+		        "periods": [
+		          {
+		            "index": 1,
+		            "value": "-6"
+		          }
+		        ]
+		      },
+		      {
+		        "metric": "coverage",
+		        "value": "91.2",
+		        "periods": [
+		          {
+		            "index": 1,
+		            "value": "40.5"
+		          }
+		        ]
+		      },
+		      {
+		        "metric": "complexity",
+		        "value": "84",
+		        "periods": [
+		          {
+		            "index": 1,
+		            "value": "21"
+		          }
+		        ]
+		      },
+		      {
+		        "metric": "ncloc",
+		        "value": "795",
+		        "periods": [
+		          {
+		            "index": 1,
+		            "value": "270"
+		          }
+		        ]
+		      }
+		    ]
+		  }
+		}`
+	suffix = "/api/measures/component?component=my%3Acomponent&metricKeys=ncloc%2Ccomplexity%2Cviolations%2Ccoverage"
 )
 
-func setup(t *testing.T) {
-	stdin = &bytes.Buffer{}
-	stdout = &bytes.Buffer{}
-	fakeResultSource = &sharedfakes.FakeResultSource{}
+func setup(t *testing.T) (stdIn *bytes.Buffer, stdOut *bytes.Buffer, tmpDir string) {
 	var err error
-	tmpDownloadDir, err = ioutil.TempDir("", "concourse-sonarqube")
+	tmpDir, err = ioutil.TempDir("", "concourse-sonarqube")
 	if err != nil {
 		t.Error(err)
 	}
+	return &bytes.Buffer{}, &bytes.Buffer{}, tmpDir
+	
 }
 
 func TestWritesContentIntoDownloadDirectory(t *testing.T) {
-	setup(t)
+	stdIn, stdOut, tmpDir := setup(t)
 
-	stdin.WriteString(`{
+	var called bool
+	s := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		called = true
+		if _, err := w.Write([]byte(mockResponse)); err != nil {
+			t.Error(err)
+		}
+	}))
+	defer s.Close()
+
+	stdIn.WriteString(fmt.Sprintf(`{
 			"source": {
-    			"target": "https://my.sonar.server",
+    			"target": "%v",
 				"sonartoken": "token",
     			"component": "my:component",
     			"metrics": "ncloc,complexity,violations,coverage"
@@ -40,40 +97,17 @@ func TestWritesContentIntoDownloadDirectory(t *testing.T) {
   			"version": {
 				"ref": "61cebf"
 			}
-		}`)
+		}`, s.URL))
 
-	fakeResponse := make([]byte, 36, 36)
-	fakeResultSource.GetResultReturns(fakeResponse, nil)
-
-	if err := run(stdin, stdout, tmpDownloadDir, fakeResultSource); err != nil {
+	if err := run(stdIn, stdOut, tmpDir); err != nil {
 		t.Error(err)
 	}
 
-	count := fakeResultSource.GetResultCallCount()
-	if count != 1 {
-		t.Errorf("Expected GetResult to be called 1 time, but was %v times", count)
+	if !called {
+		t.Error("Didn't call the remote service")
 	}
 
-	url, token, component, metrics := fakeResultSource.GetResultArgsForCall(0)
-	expUrl := "https://my.sonar.server"
-	if url != expUrl {
-		t.Errorf("Expected url to be %v, but was %v", expUrl, url)
-	}
-	expToken := "token"
-	if token != expToken {
-		t.Errorf("Expected token to be %v, but was %v", expToken, url)
-	}
-	expComponent := "my:component"
-	if component != expComponent {
-		t.Errorf("Expected component to be %v, but was %v", expComponent, url)
-	}
-	expMetrics := "ncloc,complexity,violations,coverage"
-	if metrics != expMetrics {
-		t.Errorf("Expected metrics to be %v, but was %v", expMetrics, url)
-
-	}
-
-	expectedDestination, err := ioutil.ReadDir(tmpDownloadDir)
+	expectedDestination, err := ioutil.ReadDir(tmpDir)
 	if err != nil {
 		t.Error(err)
 	}
@@ -85,22 +119,31 @@ func TestWritesContentIntoDownloadDirectory(t *testing.T) {
 		t.Errorf("Expected the file to be named correctly, but was %v", name)
 	}
 
-	fullPath := filepath.Join(tmpDownloadDir, "result.json")
+	fullPath := filepath.Join(tmpDir, "result.json")
 	content, err := ioutil.ReadFile(fullPath)
 	if err != nil {
 		t.Error(err)
 	}
-	if string(content) != string(fakeResponse) {
-		t.Errorf("Expected content to be %v, but was %v", fakeResponse, content)
+	if string(content) != mockResponse {
+		t.Errorf("Expected content to be %v, but was %v", mockResponse, string(content))
 	}
 }
 
-func TestWritesVersionToStdout(t *testing.T) {
-	setup(t)
+func TestWritesVersionTostdOut(t *testing.T) {
+	stdIn, stdOut, tmpDir := setup(t)
 
-	stdin.WriteString(`{
+	var called bool
+	s := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		called = true
+		if _, err := w.Write([]byte(mockResponse)); err != nil {
+			t.Error(err)
+		}
+	}))
+	defer s.Close()
+
+	stdIn.WriteString(fmt.Sprintf(`{
 			"source": {
-    			"target": "https://my.sonar.server",
+    			"target": "%v",
 				"sonartoken": "token",
     			"component": "my:component",
     			"metrics": "ncloc,complexity,violations,coverage"
@@ -108,18 +151,20 @@ func TestWritesVersionToStdout(t *testing.T) {
   			"version": {
 				"ref": "61cebf"
 			}
-		}`)
-	fakeResponse := make([]byte, 36, 36)
-	fakeResultSource.GetResultReturns(fakeResponse, nil)
+		}`, s.URL))
 
-	err := run(stdin, stdout, tmpDownloadDir, fakeResultSource)
+	err := run(stdIn, stdOut, tmpDir)
 	if err != nil {
 		t.Error(err)
 	}
 
+	if !called {
+		t.Error("Didn't call the remote service")
+	}
+
 	expectedResponse := `{"version":{"ref":"61cebf"}}`
 	response := make([]byte, len(expectedResponse), len(expectedResponse))
-	if _, err := stdout.Read(response); err != nil {
+	if _, err := stdOut.Read(response); err != nil {
 		t.Error(err)
 	}
 	if string(response) != string(expectedResponse) {
@@ -127,36 +172,138 @@ func TestWritesVersionToStdout(t *testing.T) {
 	}
 }
 
-func TestReturnsErrorIfContentCouldNotBeFetched(t *testing.T) {
-	setup(t)
+func TestRequestsTheCorrectUrl(t *testing.T) {
+	stdIn, stdOut, tmpDir := setup(t)
 
-	stdin.WriteString(`{
+	var called bool
+	s := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		called = true
+		if r.URL.String() != suffix {
+			t.Errorf("Expected %v, but got %v", suffix, r.URL.String())
+		}
+		if _, err := w.Write([]byte(mockResponse)); err != nil {
+			t.Error(err)
+		}
+	}))
+	defer s.Close()
+
+	stdIn.WriteString(fmt.Sprintf(`{
 			"source": {
-    			"target": "https://my.sonar.server",
+    			"target": "%v",
 				"sonartoken": "token",
-    			"component": "my-component",
+    			"component": "my:component",
     			"metrics": "ncloc,complexity,violations,coverage"
   			},
   			"version": {
 				"ref": "61cebf"
 			}
-		}`)
-	expErr := errors.New("something serious")
-	fakeResultSource.GetResultReturns(nil, expErr)
+		}`, s.URL))
 
-	if err := run(stdin, stdout, tmpDownloadDir, fakeResultSource); err != expErr {
-		t.Errorf("Expected error to be %v, but was %v", expErr, err)
+	err := run(stdIn, stdOut, tmpDir)
+	if err != nil {
+		t.Error(err)
 	}
 
-	if fakeResultSource.GetResultCallCount() < 1 {
-		t.Error("Expected GetResult to be called, but wasn't")
+	if !called {
+		t.Error("Didn't call the remote service")
+	}
+}
+
+func TestAddsAuthenticationToTheRequest(t *testing.T) {
+	stdIn, stdOut, tmpDir := setup(t)
+
+	authToken := "token"
+
+	var called bool
+	s := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		called = true
+		gotAuth := r.Header.Get("Authorization")
+		expAuth := getBasicHeader(authToken)
+		if gotAuth != expAuth {
+			t.Errorf("Expected %v, but got %v", expAuth, gotAuth)
+		}
+		if _, err := w.Write([]byte(mockResponse)); err != nil {
+			t.Error(err)
+		}
+	}))
+	defer s.Close()
+
+	stdIn.WriteString(fmt.Sprintf(`{
+			"source": {
+    			"target": "%v",
+				"sonartoken": "%v",
+    			"component": "my:component",
+    			"metrics": "ncloc,complexity,violations,coverage"
+  			},
+  			"version": {
+				"ref": "61cebf"
+			}
+		}`, s.URL, authToken))
+
+	err := run(stdIn, stdOut, tmpDir)
+	if err != nil {
+		t.Error(err)
+	}
+
+	if !called {
+		t.Error("Didn't call the remote service")
+	}
+}
+
+func TestReturnsErrorIfContentCouldNotBeFetched(t *testing.T) {
+	stdIn, stdOut, tmpDir := setup(t)
+
+	s := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusNotFound)
+	}))
+	defer s.Close()
+
+	stdIn.WriteString(fmt.Sprintf(`{
+			"source": {
+    			"target": "%v",
+				"sonartoken": "token",
+    			"component": "my:component",
+    			"metrics": "ncloc,complexity,violations,coverage"
+  			},
+  			"version": {
+				"ref": "61cebf"
+			}
+		}`, s.URL))
+
+	if err := run(stdIn, stdOut, tmpDir); err == nil {
+		t.Error("Expected error, but didn't error")
+	}
+}
+
+func TestReturnsErrorIfUnauthorized(t *testing.T) {
+	stdIn, stdOut, tmpDir := setup(t)
+
+	s := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusUnauthorized)
+	}))
+	defer s.Close()
+
+	stdIn.WriteString(fmt.Sprintf(`{
+			"source": {
+    			"target": "%v",
+				"sonartoken": "token",
+    			"component": "my:component",
+    			"metrics": "ncloc,complexity,violations,coverage"
+  			},
+  			"version": {
+				"ref": "61cebf"
+			}
+		}`, s.URL))
+
+	if err := run(stdIn, stdOut, tmpDir); err == nil {
+		t.Error("Expected error, but didn't error")
 	}
 }
 
 func TestErrorsWhenTargetIsMissing(t *testing.T) {
-	setup(t)
+	stdIn, stdOut, tmpDir := setup(t)
 
-	stdin.WriteString(`{
+	stdIn.WriteString(`{
 				"source": {
     				"missing_target": "https://my.sonar.server",
     				"sonartoken": "token",
@@ -167,19 +314,17 @@ func TestErrorsWhenTargetIsMissing(t *testing.T) {
 					"ref": "61cebf" 
 				}
 			}`)
-	fakeResponse := make([]byte, 36, 36)
-	fakeResultSource.GetResultReturns(fakeResponse, nil)
 
-	err := run(stdin, stdout, tmpDownloadDir, fakeResultSource)
+	err := run(stdIn, stdOut, tmpDir)
 	if err.Error() != "mandatory field is missing" {
 		t.Errorf("Expected error to occure, but was %v", err)
 	}
 }
 
 func TestErrorsWhenComponentIsMissing(t *testing.T) {
-	setup(t)
+	stdIn, stdOut, tmpDir := setup(t)
 
-	stdin.WriteString(`{
+	stdIn.WriteString(`{
 				"source": {
     				"target": "https://my.sonar.server",
     				"sonartoken": "token",
@@ -190,19 +335,17 @@ func TestErrorsWhenComponentIsMissing(t *testing.T) {
 					"ref": "61cebf" 
 				}
 			}`)
-	fakeResponse := make([]byte, 36, 36)
-	fakeResultSource.GetResultReturns(fakeResponse, nil)
 
-	err := run(stdin, stdout, tmpDownloadDir, fakeResultSource)
+	err := run(stdIn, stdOut, tmpDir)
 	if err.Error() != "mandatory field is missing" {
 		t.Errorf("Expected error to occure, but was %v", err)
 	}
 }
 
 func TestErrorsWhenMetricsAreMissing(t *testing.T) {
-	setup(t)
+	stdIn, stdOut, tmpDir := setup(t)
 
-	stdin.WriteString(`{
+	stdIn.WriteString(`{
 				"source": {
     				"target": "https://my.sonar.server",
     				"sonartoken": "token",
@@ -213,19 +356,17 @@ func TestErrorsWhenMetricsAreMissing(t *testing.T) {
 					"ref": "61cebf" 
 				}
 			}`)
-	fakeResponse := make([]byte, 36, 36)
-	fakeResultSource.GetResultReturns(fakeResponse, nil)
 
-	err := run(stdin, stdout, tmpDownloadDir, fakeResultSource)
+	err := run(stdIn, stdOut, tmpDir)
 	if err.Error() != "mandatory field is missing" {
 		t.Errorf("Expected error to occure, but was %v", err)
 	}
 }
 
 func TestErrorsWhenSonartokenIsMissing(t *testing.T) {
-	setup(t)
+	stdIn, stdOut, tmpDir := setup(t)
 
-	stdin.WriteString(`{
+	stdIn.WriteString(`{
 				"source": {
     				"target": "https://my.sonar.server",
     				"missing_sonartoken": "token",
@@ -236,11 +377,13 @@ func TestErrorsWhenSonartokenIsMissing(t *testing.T) {
 					"ref": "61cebf" 
 				}
 			}`)
-	fakeResponse := make([]byte, 36, 36)
-	fakeResultSource.GetResultReturns(fakeResponse, nil)
 
-	err := run(stdin, stdout, tmpDownloadDir, fakeResultSource)
+	err := run(stdIn, stdOut, tmpDir)
 	if err.Error() != "mandatory field is missing" {
 		t.Errorf("Expected error to occure, but was %v", err)
 	}
+}
+
+func getBasicHeader(authToken string) string {
+	return "Basic " + base64.StdEncoding.EncodeToString([]byte(authToken+":"))
 }

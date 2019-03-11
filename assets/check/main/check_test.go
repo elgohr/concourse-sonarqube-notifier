@@ -2,12 +2,15 @@ package main
 
 import (
 	"bytes"
-	"errors"
-	"github.com/elgohr/concourse-sonarqube-notifier/assets/shared/sharedfakes"
+	"encoding/base64"
+	"fmt"
+	"net/http"
+	"net/http/httptest"
 	"testing"
 )
 
-const mockResponse = `{
+const (
+	mockResponse = `{
 		  "paging": {
 		    "pageIndex": 1,
 		    "pageSize": 100,
@@ -54,25 +57,28 @@ const mockResponse = `{
 		    }
 		  ]
 		}`
-
-var (
-	stdin            *bytes.Buffer
-	stdout           *bytes.Buffer
-	fakeResultSource *sharedfakes.FakeResultSource
+	suffix = "/api/project_analyses/search?project=my%3Acomponent"
 )
 
-func setup() {
-	stdin = &bytes.Buffer{}
-	stdout = &bytes.Buffer{}
-	fakeResultSource = &sharedfakes.FakeResultSource{}
-}
-
 func TestReturnsVersionsOfLastResult(t *testing.T) {
-	setup()
+	stdin := &bytes.Buffer{}
+	stdout := &bytes.Buffer{}
 
-	stdin.WriteString(`{
+	var called bool
+	s := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		called = true
+		if r.URL.String() != suffix {
+			t.Errorf("Expected %v, but got %v", suffix, r.URL.String())
+		}
+		if _, err := w.Write([]byte(mockResponse)); err != nil {
+			t.Error(err)
+		}
+	}))
+	defer s.Close()
+
+	stdin.WriteString(fmt.Sprintf(`{
 			"source": {
-    			"target": "https://my.sonar.server",
+    			"target": "%v",
 				"sonartoken": "token",
     			"component": "my:component",
     			"metrics": "ncloc,complexity,violations,coverage"
@@ -80,30 +86,14 @@ func TestReturnsVersionsOfLastResult(t *testing.T) {
   			"version": {
 				"ref": "61cebf"
 			}
-		}`)
-	fakeResultSource.GetVersionsReturns([]byte(mockResponse), nil)
+		}`, s.URL))
 
-	if err := run(stdin, stdout, fakeResultSource); err != nil {
+	if err := run(stdin, stdout); err != nil {
 		t.Error(err)
 	}
 
-	count := fakeResultSource.GetVersionsCallCount()
-	if count != 1 {
-		t.Errorf("Expected GetVersions to be called 1 time, but was %v times", count)
-	}
-
-	url, token, component := fakeResultSource.GetVersionsArgsForCall(0)
-	expUrl := "https://my.sonar.server"
-	if url != expUrl {
-		t.Errorf("Expected url to be %v, but was %v", expUrl, url)
-	}
-	expToken := "token"
-	if token != expToken {
-		t.Errorf("Expected token to be %v, but was %v", expToken, url)
-	}
-	expComponent := "my:component"
-	if component != expComponent {
-		t.Errorf("Expected component to be %v, but was %v", expComponent, url)
+	if !called {
+		t.Error("Didn't call the remote service")
 	}
 
 	expectedResponse := `[{"timestamp":"2018-03-08T14:31:37+0100"},{"timestamp":"2018-03-22T15:15:48+0100"},{"timestamp":"2018-03-26T11:51:30+0200"},{"timestamp":"2018-04-04T15:32:28+0200"},{"timestamp":"2018-04-06T14:27:06+0200"}]`
@@ -116,29 +106,139 @@ func TestReturnsVersionsOfLastResult(t *testing.T) {
 	}
 }
 
-func TestReturnsErrorIfContentCouldNotBeFetched(t *testing.T) {
-	setup()
+func TestRequestsTheCorrectUrl(t *testing.T) {
+	stdin := &bytes.Buffer{}
+	stdout := &bytes.Buffer{}
 
-	stdin.WriteString(`{
+	var called bool
+	s := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		called = true
+		if r.URL.String() != suffix {
+			t.Errorf("Expected %v, but got %v", suffix, r.URL.String())
+		}
+		if _, err := w.Write([]byte(mockResponse)); err != nil {
+			t.Error(err)
+		}
+	}))
+	defer s.Close()
+
+	stdin.WriteString(fmt.Sprintf(`{
 			"source": {
-    			"target": "https://my.sonar.server",
+    			"target": "%v",
 				"sonartoken": "token",
-    			"component": "my-component",
+    			"component": "my:component",
     			"metrics": "ncloc,complexity,violations,coverage"
   			},
   			"version": {
 				"ref": "61cebf"
 			}
-		}`)
-	fakeResultSource.GetResultReturns(nil, errors.New("something serious"))
+		}`, s.URL))
 
-	if err := run(stdin, stdout, fakeResultSource); err == nil {
+	if err := run(stdin, stdout); err != nil {
+		t.Error(err)
+	}
+
+	if !called {
+		t.Error("Didn't call the remote service")
+	}
+}
+
+func TestAddsAuthenticationToTheRequest(t *testing.T) {
+	stdin := &bytes.Buffer{}
+	stdout := &bytes.Buffer{}
+
+	authToken := "token"
+
+	var called bool
+	s := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		called = true
+		gotAuth := r.Header.Get("Authorization")
+		expAuth := getBasicHeader(authToken)
+		if gotAuth != expAuth {
+			t.Errorf("Expected %v, but got %v", expAuth, gotAuth)
+		}
+		if _, err := w.Write([]byte(mockResponse)); err != nil {
+			t.Error(err)
+		}
+	}))
+	defer s.Close()
+
+	stdin.WriteString(fmt.Sprintf(`{
+			"source": {
+    			"target": "%v",
+				"sonartoken": "%v",
+    			"component": "my:component",
+    			"metrics": "ncloc,complexity,violations,coverage"
+  			},
+  			"version": {
+				"ref": "61cebf"
+			}
+		}`, s.URL, authToken))
+
+	if err := run(stdin, stdout); err != nil {
+		t.Error(err)
+	}
+
+	if !called {
+		t.Error("Didn't call the remote service")
+	}
+}
+
+func TestReturnsErrorIfContentCouldNotBeFetched(t *testing.T) {
+	stdin := &bytes.Buffer{}
+	stdout := &bytes.Buffer{}
+
+	s := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusNotFound)
+	}))
+	defer s.Close()
+
+	stdin.WriteString(fmt.Sprintf(`{
+			"source": {
+    			"target": "%v",
+				"sonartoken": "token",
+    			"component": "my:component",
+    			"metrics": "ncloc,complexity,violations,coverage"
+  			},
+  			"version": {
+				"ref": "61cebf"
+			}
+		}`, s.URL))
+
+	if err := run(stdin, stdout); err == nil {
+		t.Error("Expected error to occure, but didn't")
+	}
+}
+
+func TestReturnsErrorIfUnauthorized(t *testing.T) {
+	stdin := &bytes.Buffer{}
+	stdout := &bytes.Buffer{}
+
+	s := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusUnauthorized)
+	}))
+	defer s.Close()
+
+	stdin.WriteString(fmt.Sprintf(`{
+			"source": {
+    			"target": "%v",
+				"sonartoken": "token",
+    			"component": "my:component",
+    			"metrics": "ncloc,complexity,violations,coverage"
+  			},
+  			"version": {
+				"ref": "61cebf"
+			}
+		}`, s.URL))
+
+	if err := run(stdin, stdout); err == nil {
 		t.Error("Expected error to occure, but didn't")
 	}
 }
 
 func TestErrorsWhenTargetIsMissing(t *testing.T) {
-	setup()
+	stdin := &bytes.Buffer{}
+	stdout := &bytes.Buffer{}
 
 	stdin.WriteString(`{
 				"source": {
@@ -151,17 +251,16 @@ func TestErrorsWhenTargetIsMissing(t *testing.T) {
 					"ref": "61cebf" 
 				}
 			}`)
-	fakeResponse := make([]byte, 36, 36)
-	fakeResultSource.GetResultReturns(fakeResponse, nil)
 
-	err := run(stdin, stdout, fakeResultSource)
+	err := run(stdin, stdout)
 	if err.Error() != "mandatory field is missing" {
 		t.Errorf("Expected error to occure, but was %v", err)
 	}
 }
 
 func TestErrorsWhenComponentIsMissing(t *testing.T) {
-	setup()
+	stdin := &bytes.Buffer{}
+	stdout := &bytes.Buffer{}
 
 	stdin.WriteString(`{
 				"source": {
@@ -174,17 +273,16 @@ func TestErrorsWhenComponentIsMissing(t *testing.T) {
 					"ref": "61cebf" 
 				}
 			}`)
-	fakeResponse := make([]byte, 36, 36)
-	fakeResultSource.GetResultReturns(fakeResponse, nil)
 
-	err := run(stdin, stdout, fakeResultSource)
+	err := run(stdin, stdout)
 	if err.Error() != "mandatory field is missing" {
 		t.Errorf("Expected error to occure, but was %v", err)
 	}
 }
 
 func TestErrorsWhenMetricsAreMissing(t *testing.T) {
-	setup()
+	stdin := &bytes.Buffer{}
+	stdout := &bytes.Buffer{}
 
 	stdin.WriteString(`{
 				"source": {
@@ -197,17 +295,16 @@ func TestErrorsWhenMetricsAreMissing(t *testing.T) {
 					"ref": "61cebf" 
 				}
 			}`)
-	fakeResponse := make([]byte, 36, 36)
-	fakeResultSource.GetResultReturns(fakeResponse, nil)
 
-	err := run(stdin, stdout, fakeResultSource)
+	err := run(stdin, stdout)
 	if err.Error() != "mandatory field is missing" {
 		t.Errorf("Expected error to occure, but was %v", err)
 	}
 }
 
 func TestErrorsWhenSonartokenIsMissing(t *testing.T) {
-	setup()
+	stdin := &bytes.Buffer{}
+	stdout := &bytes.Buffer{}
 
 	stdin.WriteString(`{
 				"source": {
@@ -220,11 +317,13 @@ func TestErrorsWhenSonartokenIsMissing(t *testing.T) {
 					"ref": "61cebf" 
 				}
 			}`)
-	fakeResponse := make([]byte, 36, 36)
-	fakeResultSource.GetResultReturns(fakeResponse, nil)
 
-	err := run(stdin, stdout, fakeResultSource)
+	err := run(stdin, stdout)
 	if err.Error() != "mandatory field is missing" {
 		t.Errorf("Expected error to occure, but was %v", err)
 	}
+}
+
+func getBasicHeader(authToken string) string {
+	return "Basic " + base64.StdEncoding.EncodeToString([]byte(authToken+":"))
 }
