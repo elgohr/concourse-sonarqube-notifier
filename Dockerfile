@@ -1,14 +1,15 @@
-FROM golang:alpine as build
+FROM golang as build
 ENV CGO_ENABLED 0
-COPY . /go/src/github.com/concourse-sonarqube-notifier
+COPY . /concourse-sonarqube-notifier
 
 RUN mkdir -p /assets \
- && go test -v github.com/concourse-sonarqube-notifier/assets/in/main \
- && go test -v github.com/concourse-sonarqube-notifier/assets/out/main \
- && go test -v github.com/concourse-sonarqube-notifier/assets/check/main \
- && go build -o /assets/in github.com/concourse-sonarqube-notifier/assets/in/main \
- && go build -o /assets/out github.com/concourse-sonarqube-notifier/assets/out/main \
- && go build -o /assets/check github.com/concourse-sonarqube-notifier/assets/check/main
+ && cd /concourse-sonarqube-notifier \
+ && go get -u github.com/maxbrunsfeld/counterfeiter \
+ && go generate ./... \
+ && go test -v ./... \
+ && go build -o /assets/in assets/in/main/in.go \
+ && go build -o /assets/out assets/out/main/out.go \
+ && go build -o /assets/check assets/check/main/check.go
 
 FROM alpine AS runtime
 RUN apk add --no-cache ca-certificates

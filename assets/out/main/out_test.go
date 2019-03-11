@@ -2,17 +2,17 @@ package main
 
 import (
 	"bytes"
-	. "github.com/onsi/ginkgo"
-	. "github.com/onsi/gomega"
+	"testing"
 )
 
-var _ = Describe("Out", func() {
-	It("outputs an empty JSON array so that it satisfies the resource interface", func() {
-		stdout := new(bytes.Buffer)
+func TestDoesNothing(t *testing.T) {
+	stdout := &bytes.Buffer{}
+	status := run(stdout)
 
-		status := run(stdout)
-
-		Expect(status).To(Equal(0))
-		Expect(stdout.String()).To(Equal(`[]`))
-	})
-})
+	if status != 0 {
+		t.Errorf("Expected status 0, but got %v", status)
+	}
+	if stdout.String() != `[]` {
+		t.Errorf("Expected empty array, but got %v", stdout.String())
+	}
+}

@@ -3,20 +3,11 @@ package main
 import (
 	"bytes"
 	"errors"
-	"github.com/concourse-sonarqube-notifier/assets/shared/sharedfakes"
-	. "github.com/onsi/ginkgo"
-	. "github.com/onsi/gomega"
+	"github.com/elgohr/concourse-sonarqube-notifier/assets/shared/sharedfakes"
+	"testing"
 )
 
-var _ = Describe("Check", func() {
-	var (
-		stdin            *bytes.Buffer
-		stdout           *bytes.Buffer
-		stderr           *bytes.Buffer
-		fakeResultSource *sharedfakes.FakeResultSource
-	)
-
-	const mockResponse = `{
+const mockResponse = `{
 		  "paging": {
 		    "pageIndex": 1,
 		    "pageSize": 100,
@@ -64,15 +55,22 @@ var _ = Describe("Check", func() {
 		  ]
 		}`
 
-	BeforeEach(func() {
-		stdin = new(bytes.Buffer)
-		stdout = new(bytes.Buffer)
-		stderr = new(bytes.Buffer)
-		fakeResultSource = new(sharedfakes.FakeResultSource)
-	})
+var (
+	stdin            *bytes.Buffer
+	stdout           *bytes.Buffer
+	fakeResultSource *sharedfakes.FakeResultSource
+)
 
-	It("returns the versions of the last results", func() {
-		stdin.WriteString(`{
+func setup() {
+	stdin = &bytes.Buffer{}
+	stdout = &bytes.Buffer{}
+	fakeResultSource = &sharedfakes.FakeResultSource{}
+}
+
+func TestReturnsVersionsOfLastResult(t *testing.T) {
+	setup()
+
+	stdin.WriteString(`{
 			"source": {
     			"target": "https://my.sonar.server",
 				"sonartoken": "token",
@@ -83,27 +81,45 @@ var _ = Describe("Check", func() {
 				"ref": "61cebf"
 			}
 		}`)
-		fakeResultSource.GetVersionsReturns([]byte(mockResponse), nil)
+	fakeResultSource.GetVersionsReturns([]byte(mockResponse), nil)
 
-		err := run(stdin, stdout, fakeResultSource)
+	if err := run(stdin, stdout, fakeResultSource); err != nil {
+		t.Error(err)
+	}
 
-		Expect(err).NotTo(HaveOccurred())
+	count := fakeResultSource.GetVersionsCallCount()
+	if count != 1 {
+		t.Errorf("Expected GetVersions to be called 1 time, but was %v times", count)
+	}
 
-		Expect(fakeResultSource.GetVersionsCallCount()).To(Equal(1))
-		url, token, component := fakeResultSource.GetVersionsArgsForCall(0)
-		Expect(url).To(Equal("https://my.sonar.server"))
-		Expect(token).To(Equal("token"))
-		Expect(component).To(Equal("my:component"))
+	url, token, component := fakeResultSource.GetVersionsArgsForCall(0)
+	expUrl := "https://my.sonar.server"
+	if url != expUrl {
+		t.Errorf("Expected url to be %v, but was %v", expUrl, url)
+	}
+	expToken := "token"
+	if token != expToken {
+		t.Errorf("Expected token to be %v, but was %v", expToken, url)
+	}
+	expComponent := "my:component"
+	if component != expComponent {
+		t.Errorf("Expected component to be %v, but was %v", expComponent, url)
+	}
 
+	expectedResponse := `[{"timestamp":"2018-03-08T14:31:37+0100"},{"timestamp":"2018-03-22T15:15:48+0100"},{"timestamp":"2018-03-26T11:51:30+0200"},{"timestamp":"2018-04-04T15:32:28+0200"},{"timestamp":"2018-04-06T14:27:06+0200"}]`
+	response := make([]byte, len(expectedResponse), len(expectedResponse))
+	if _, err := stdout.Read(response); err != nil {
+		t.Error(err)
+	}
+	if string(response) != string(expectedResponse) {
+		t.Errorf("Expected content to be %v, but was %v", string(expectedResponse), string(response))
+	}
+}
 
-		expectedResponse := `[{"timestamp":"2018-03-08T14:31:37+0100"},{"timestamp":"2018-03-22T15:15:48+0100"},{"timestamp":"2018-03-26T11:51:30+0200"},{"timestamp":"2018-04-04T15:32:28+0200"},{"timestamp":"2018-04-06T14:27:06+0200"}]`
-		response := make([]byte, len(expectedResponse), len(expectedResponse))
-		stdout.Read(response)
-		Expect(string(response)).To(Equal(expectedResponse))
-	})
+func TestReturnsErrorIfContentCouldNotBeFetched(t *testing.T) {
+	setup()
 
-	It("returns an error if the content could not be fetched", func() {
-		stdin.WriteString(`{
+	stdin.WriteString(`{
 			"source": {
     			"target": "https://my.sonar.server",
 				"sonartoken": "token",
@@ -114,16 +130,17 @@ var _ = Describe("Check", func() {
 				"ref": "61cebf"
 			}
 		}`)
-		fakeResultSource.GetResultReturns(nil, errors.New("something serious"))
+	fakeResultSource.GetResultReturns(nil, errors.New("something serious"))
 
-		err := run(stdin, stdout, fakeResultSource)
+	if err := run(stdin, stdout, fakeResultSource); err == nil {
+		t.Error("Expected error to occure, but didn't")
+	}
+}
 
-		Expect(err).To(HaveOccurred())
-	})
+func TestErrorsWhenTargetIsMissing(t *testing.T) {
+	setup()
 
-	Describe("mandatory check", func() {
-		It("errors when target is missing", func() {
-			stdin.WriteString(`{
+	stdin.WriteString(`{
 				"source": {
     				"missing_target": "https://my.sonar.server",
     				"sonartoken": "token",
@@ -134,16 +151,19 @@ var _ = Describe("Check", func() {
 					"ref": "61cebf" 
 				}
 			}`)
-			fakeResponse := make([]byte, 36, 36)
-			fakeResultSource.GetResultReturns(fakeResponse, nil)
+	fakeResponse := make([]byte, 36, 36)
+	fakeResultSource.GetResultReturns(fakeResponse, nil)
 
-			err := run(stdin, stdout, fakeResultSource)
+	err := run(stdin, stdout, fakeResultSource)
+	if err.Error() != "mandatory field is missing" {
+		t.Errorf("Expected error to occure, but was %v", err)
+	}
+}
 
-			Expect(err).To(HaveOccurred())
-		})
+func TestErrorsWhenComponentIsMissing(t *testing.T) {
+	setup()
 
-		It("errors when component is missing", func() {
-			stdin.WriteString(`{
+	stdin.WriteString(`{
 				"source": {
     				"target": "https://my.sonar.server",
     				"sonartoken": "token",
@@ -154,16 +174,19 @@ var _ = Describe("Check", func() {
 					"ref": "61cebf" 
 				}
 			}`)
-			fakeResponse := make([]byte, 36, 36)
-			fakeResultSource.GetResultReturns(fakeResponse, nil)
+	fakeResponse := make([]byte, 36, 36)
+	fakeResultSource.GetResultReturns(fakeResponse, nil)
 
-			err := run(stdin, stdout, fakeResultSource)
+	err := run(stdin, stdout, fakeResultSource)
+	if err.Error() != "mandatory field is missing" {
+		t.Errorf("Expected error to occure, but was %v", err)
+	}
+}
 
-			Expect(err).To(HaveOccurred())
-		})
+func TestErrorsWhenMetricsAreMissing(t *testing.T) {
+	setup()
 
-		It("errors when metrics are missing", func() {
-			stdin.WriteString(`{
+	stdin.WriteString(`{
 				"source": {
     				"target": "https://my.sonar.server",
     				"sonartoken": "token",
@@ -174,16 +197,19 @@ var _ = Describe("Check", func() {
 					"ref": "61cebf" 
 				}
 			}`)
-			fakeResponse := make([]byte, 36, 36)
-			fakeResultSource.GetResultReturns(fakeResponse, nil)
+	fakeResponse := make([]byte, 36, 36)
+	fakeResultSource.GetResultReturns(fakeResponse, nil)
 
-			err := run(stdin, stdout, fakeResultSource)
+	err := run(stdin, stdout, fakeResultSource)
+	if err.Error() != "mandatory field is missing" {
+		t.Errorf("Expected error to occure, but was %v", err)
+	}
+}
 
-			Expect(err).To(HaveOccurred())
-		})
+func TestErrorsWhenSonartokenIsMissing(t *testing.T) {
+	setup()
 
-		It("errors when sonartoken is missing", func() {
-			stdin.WriteString(`{
+	stdin.WriteString(`{
 				"source": {
     				"target": "https://my.sonar.server",
     				"missing_sonartoken": "token",
@@ -194,12 +220,11 @@ var _ = Describe("Check", func() {
 					"ref": "61cebf" 
 				}
 			}`)
-			fakeResponse := make([]byte, 36, 36)
-			fakeResultSource.GetResultReturns(fakeResponse, nil)
+	fakeResponse := make([]byte, 36, 36)
+	fakeResultSource.GetResultReturns(fakeResponse, nil)
 
-			err := run(stdin, stdout, fakeResultSource)
-
-			Expect(err).To(HaveOccurred())
-		})
-	})
-})
+	err := run(stdin, stdout, fakeResultSource)
+	if err.Error() != "mandatory field is missing" {
+		t.Errorf("Expected error to occure, but was %v", err)
+	}
+}

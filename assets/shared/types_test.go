@@ -1,77 +1,66 @@
 package shared_test
 
 import (
-	"errors"
-	"github.com/concourse-sonarqube-notifier/assets/shared"
-	. "github.com/onsi/ginkgo"
-	. "github.com/onsi/gomega"
+	"github.com/elgohr/concourse-sonarqube-notifier/assets/shared"
+	"testing"
 )
 
-var _ = Describe("Types", func() {
+func TestReturnsTrueWhenAllFieldsAreFilled(t *testing.T) {
+	src := shared.Source{
+		Target: "Target",
+		SonarToken: "Token",
+		Metrics: "Metrics",
+		Component: "Component",
+	}
+	if !src.Valid(){
+		t.Error("Wasn't valid")
+	}
+}
 
-	Describe("Source", func() {
-		It("valid - returns true when all mandatory fields are filled", func() {
-			src := shared.Source{
-				Target: "Target",
-				SonarToken: "Token",
-				Metrics: "Metrics",
-				Component: "Component",
-			}
-			Expect(src.Valid()).To(Equal(true))
-		})
+func TestReturnsFalseWhenTargetIsMissing(t *testing.T) {
+	src := shared.Source{
+		Target: "",
+		SonarToken: "Token",
+		Metrics: "Metrics",
+		Component: "Component",
+	}
+	if src.Valid(){
+		t.Error("Is still valid")
+	}
+}
 
-		It("valid - requires a target", func() {
-			src := shared.Source{
-				Target: "",
-				SonarToken: "Token",
-				Metrics: "Metrics",
-				Component: "Component",
-			}
-			Expect(src.Valid()).To(Equal(false))
-		})
+func TestReturnsFalseWhenSonarTokenIsMissing(t *testing.T) {
+	src := shared.Source{
+		Target: "Target",
+		SonarToken: "",
+		Metrics: "Metrics",
+		Component: "Component",
+	}
+	if src.Valid(){
+		t.Error("Is still valid")
+	}
+}
 
-		It("valid - requires a sonartoken", func() {
-			src := shared.Source{
-				Target: "target",
-				SonarToken: "",
-				Metrics: "Metrics",
-				Component: "Component",
-			}
-			Expect(src.Valid()).To(Equal(false))
-		})
+func TestReturnsFalseWhenMetricsIsMissing(t *testing.T) {
+	src := shared.Source{
+		Target: "Target",
+		SonarToken: "Token",
+		Metrics: "",
+		Component: "Component",
+	}
+	if src.Valid(){
+		t.Error("Is still valid")
+	}
+}
 
-		It("valid - requires metrics", func() {
-			src := shared.Source{
-				Target: "target",
-				SonarToken: "Token",
-				Metrics: "",
-				Component: "Component",
-			}
-			Expect(src.Valid()).To(Equal(false))
-		})
-
-		It("valid - requires a component", func() {
-			src := shared.Source{
-				Target: "target",
-				SonarToken: "Token",
-				Metrics: "Metrics",
-				Component: "",
-			}
-			Expect(src.Valid()).To(Equal(false))
-		})
-
-	})
-
-	Describe("hasError", func() {
-		It("returns true if an error is present", func() {
-			result := shared.HasError(errors.New("BAD"))
-			Expect(result).To(Equal(true))
-		})
-
-		It("returns false if no error is present", func() {
-			result := shared.HasError(nil)
-			Expect(result).To(Equal(false))
-		})
-	})
-
-})
+func TestReturnsFalseWhenComponentIsMissing(t *testing.T) {
+	src := shared.Source{
+		Target: "Target",
+		SonarToken: "Token",
+		Metrics: "Metrics",
+		Component: "",
+	}
+	if src.Valid(){
+		t.Error("Is still valid")
+	}
+}

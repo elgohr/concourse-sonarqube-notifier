@@ -3,7 +3,7 @@ package main
 import (
 	"encoding/json"
 	"errors"
-	. "github.com/concourse-sonarqube-notifier/assets/shared"
+	"github.com/elgohr/concourse-sonarqube-notifier/assets/shared"
 	"io"
 	"io/ioutil"
 	"log"
@@ -12,27 +12,26 @@ import (
 )
 
 type InRequest struct {
-	Source  Source  `json:"source"`
-	Version Version `json:"version"`
+	Source  shared.Source  `json:"source"`
+	Version shared.Version `json:"version"`
 }
 
 type InResponse struct {
-	Version Version `json:"version"`
+	Version shared.Version `json:"version"`
 }
 
 func main() {
 	downloadDir := os.Args[1]
-	err := run(os.Stdin, os.Stdout, downloadDir, new(Sonarqube))
-	if HasError(err) {
+	if err := run(os.Stdin, os.Stdout, downloadDir, new(shared.Sonarqube));
+		err != nil {
 		log.Fatalln(err)
 		os.Exit(1)
 	}
 }
 
-func run(stdIn io.Reader, stdOut io.Writer, downloadDir string, resultSource ResultSource) error {
+func run(stdIn io.Reader, stdOut io.Writer, downloadDir string, resultSource shared.ResultSource) error {
 	var input InRequest
-	err := json.NewDecoder(stdIn).Decode(&input)
-	if HasError(err) {
+	if err := json.NewDecoder(stdIn).Decode(&input); err != nil {
 		return err
 	}
 
@@ -46,20 +45,16 @@ func run(stdIn io.Reader, stdOut io.Writer, downloadDir string, resultSource Res
 		input.Source.Component,
 		input.Source.Metrics,
 	)
-	if HasError(err) {
+	if err != nil {
 		return err
 	}
 
 	destinationPath := filepath.Join(downloadDir, "result.json")
 	ioutil.WriteFile(destinationPath, result, os.ModePerm)
 
-	response := InResponse{
-		input.Version,
-	}
-	err = json.NewEncoder(stdOut).Encode(response)
-	if HasError(err) {
-		return err
-	}
-
-	return nil
+	return json.
+		NewEncoder(stdOut).
+		Encode(InResponse{
+			Version: input.Version,
+		})
 }

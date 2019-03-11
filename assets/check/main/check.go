@@ -3,17 +3,17 @@ package main
 import (
 	"encoding/json"
 	"errors"
-	. "github.com/concourse-sonarqube-notifier/assets/shared"
+	"github.com/elgohr/concourse-sonarqube-notifier/assets/shared"
 	"io"
 	"log"
 	"os"
 )
 
 type CheckRequest struct {
-	Source Source `json:"source"`
+	Source shared.Source `json:"source"`
 }
 
-type CheckResponse []Version
+type CheckResponse []shared.Version
 
 type SonarResponse struct {
 	Analyses []Analyses `json:"analyses"`
@@ -25,20 +25,18 @@ type Analyses struct {
 }
 
 func main() {
-	err := run(os.Stdin, os.Stdout, new(Sonarqube))
-	if HasError(err) {
+	if err := run(os.Stdin, os.Stdout, &shared.Sonarqube{}); err != nil {
 		log.Fatalln(err)
 		os.Exit(1)
 	}
 }
 
-func run(stdIn io.Reader, stdOut io.Writer, resultSource ResultSource) error {
+func run(stdIn io.Reader, stdOut io.Writer, resultSource shared.ResultSource) error {
 	var (
 		input    CheckRequest
 		response SonarResponse
 	)
-	err := json.NewDecoder(stdIn).Decode(&input)
-	if HasError(err) {
+	if err := json.NewDecoder(stdIn).Decode(&input); err != nil {
 		return err
 	}
 
@@ -51,24 +49,18 @@ func run(stdIn io.Reader, stdOut io.Writer, resultSource ResultSource) error {
 		input.Source.SonarToken,
 		input.Source.Component,
 	)
-	if HasError(err) {
+	if err != nil {
 		return err
 	}
 
-	err = json.Unmarshal(result, &response)
-	if HasError(err) {
+	if err := json.Unmarshal(result, &response); err != nil {
 		return err
 	}
 
 	var remoteVersions CheckResponse
-
 	for _, a := range response.Analyses {
-		remoteVersions = append([]Version{{"timestamp":a.Date}}, remoteVersions...)
+		remoteVersions = append([]shared.Version{{"timestamp": a.Date}}, remoteVersions...)
 	}
 
-	err = json.NewEncoder(stdOut).Encode(remoteVersions)
-	if HasError(err) {
-		return err
-	}
-	return nil
+	return json.NewEncoder(stdOut).Encode(remoteVersions)
 }
