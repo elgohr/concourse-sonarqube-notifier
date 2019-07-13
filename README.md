@@ -15,7 +15,7 @@ resource_types:
 - name: sonarqube-notifier
   type: docker-image
   source:
-    repository: lgohr/sonarqube
+    repository: docker.pkg.github.com/elgohr/concourse-sonarqube-notifier/concourse-sonarqube-notifier
     tag: latest
 ```
 
