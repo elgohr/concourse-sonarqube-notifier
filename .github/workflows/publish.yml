@@ -17,3 +17,4 @@ jobs:
         docker push lgohr/sonarqube:${{ github.sha }}
         docker push lgohr/sonarqube:latest
     - name: Logout
+      run: docker logout
