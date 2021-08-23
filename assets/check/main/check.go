@@ -31,7 +31,6 @@ type Analyses struct {
 func main() {
 	if err := run(os.Stdin, os.Stdout); err != nil {
 		log.Fatalln(err)
-		os.Exit(1)
 	}
 }
 
@@ -79,15 +78,17 @@ func getVersions(baseUrl string, authToken string, component string) ([]byte, er
 	parameters.Add("project", component)
 	fullUrl.RawQuery = parameters.Encode()
 
-	req, err := http.NewRequest("GET", fullUrl.String(), nil)
-	req.SetBasicAuth(authToken, "")
-
-	client := &http.Client{}
-	resp, err := client.Do(req)
-	defer resp.Body.Close()
+	req, err := http.NewRequest(http.MethodGet, fullUrl.String(), nil)
 	if err != nil {
 		return nil, err
 	}
+	req.SetBasicAuth(authToken, "")
+
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
 	body, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
 		return nil, err

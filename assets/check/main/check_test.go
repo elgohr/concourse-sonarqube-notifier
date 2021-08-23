@@ -236,6 +236,27 @@ func TestReturnsErrorIfUnauthorized(t *testing.T) {
 	}
 }
 
+func TestReturnsWhenErrorDuringCall(t *testing.T) {
+	stdin := &bytes.Buffer{}
+	stdout := &bytes.Buffer{}
+
+	stdin.WriteString(`{
+			"source": {
+    			"target": "http://localhost",
+				"sonartoken": "token",
+    			"component": "my:component",
+    			"metrics": "ncloc,complexity,violations,coverage"
+  			},
+  			"version": {
+				"ref": "61cebf"
+			}
+		}`)
+
+	if err := run(stdin, stdout); err == nil {
+		t.Error("Expected error to occure, but didn't")
+	}
+}
+
 func TestErrorsWhenTargetIsMissing(t *testing.T) {
 	stdin := &bytes.Buffer{}
 	stdout := &bytes.Buffer{}
@@ -253,7 +274,7 @@ func TestErrorsWhenTargetIsMissing(t *testing.T) {
 			}`)
 
 	err := run(stdin, stdout)
-	if err.Error() != "mandatory field is missing" {
+	if err == nil || err.Error() != "mandatory field is missing" {
 		t.Errorf("Expected error to occure, but was %v", err)
 	}
 }
@@ -275,7 +296,7 @@ func TestErrorsWhenComponentIsMissing(t *testing.T) {
 			}`)
 
 	err := run(stdin, stdout)
-	if err.Error() != "mandatory field is missing" {
+	if err == nil || err.Error() != "mandatory field is missing" {
 		t.Errorf("Expected error to occure, but was %v", err)
 	}
 }
@@ -297,7 +318,7 @@ func TestErrorsWhenMetricsAreMissing(t *testing.T) {
 			}`)
 
 	err := run(stdin, stdout)
-	if err.Error() != "mandatory field is missing" {
+	if err == nil || err.Error() != "mandatory field is missing" {
 		t.Errorf("Expected error to occure, but was %v", err)
 	}
 }
@@ -319,7 +340,7 @@ func TestErrorsWhenSonartokenIsMissing(t *testing.T) {
 			}`)
 
 	err := run(stdin, stdout)
-	if err.Error() != "mandatory field is missing" {
+	if err == nil || err.Error() != "mandatory field is missing" {
 		t.Errorf("Expected error to occure, but was %v", err)
 	}
 }
