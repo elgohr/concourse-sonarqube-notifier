@@ -1,4 +1,4 @@
-FROM golang:1.17.7-alpine as build
+FROM golang:1.18.1-alpine as build
 ENV CGO_ENABLED 0
 COPY . /concourse-sonarqube-notifier
 
@@ -9,7 +9,7 @@ RUN mkdir -p /assets \
  && go build -o /assets/out assets/out/main/out.go \
  && go build -o /assets/check assets/check/main/check.go
 
-FROM alpine:3.15.0 AS runtime
+FROM alpine:3.15.4 AS runtime
 RUN apk add --no-cache ca-certificates
 COPY --from=build assets/ /opt/resource/
 RUN chmod +x /opt/resource/*
