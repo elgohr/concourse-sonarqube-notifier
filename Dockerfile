@@ -9,7 +9,7 @@ RUN mkdir -p /assets \
  && go build -o /assets/out assets/out/main/out.go \
  && go build -o /assets/check assets/check/main/check.go
 
-FROM alpine:3.17.3 AS runtime
+FROM alpine:3.18.0 AS runtime
 RUN apk add --no-cache ca-certificates
 COPY --from=build assets/ /opt/resource/
 RUN chmod +x /opt/resource/*
