@@ -1,4 +1,4 @@
-FROM golang:1.22.4-alpine as build
+FROM golang:1.23rc1-alpine as build
 ENV CGO_ENABLED 0
 COPY . /concourse-sonarqube-notifier
 
