@@ -1,6 +1,6 @@
 # SonarQube Notification Resource
-[![Actions Status](https://github.com/elgohr/concourse-sonarqube-notifier/workflows/Test/badge.svg)](https://github.com/elgohr/concourse-sonarqube-notifier/actions)
-[![Actions Status](https://github.com/elgohr/concourse-sonarqube-notifier/workflows/Publish%20Master/badge.svg)](https://github.com/elgohr/concourse-sonarqube-notifier/actions)
+[![Test](https://github.com/elgohr/concourse-sonarqube-notifier/actions/workflows/test.yml/badge.svg)](https://github.com/elgohr/concourse-sonarqube-notifier/actions/workflows/test.yml)
+[![Publish](https://github.com/elgohr/concourse-sonarqube-notifier/actions/workflows/publish.yml/badge.svg)](https://github.com/elgohr/concourse-sonarqube-notifier/actions/workflows/publish.yml)
 
 Gets Sonarqube results.
 
